@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Icon Resizer Helper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .instructions ol {
+            line-height: 1.8;
+        }
+        .file-input {
+            margin: 20px 0;
+        }
+        input[type="file"] {
+            padding: 10px;
+            border: 2px dashed #3b82f6;
+            border-radius: 5px;
+            width: 100%;
+        }
+        .preview {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .preview img {
+            max-width: 200px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 10px;
+        }
+        .download-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+        }
+        .download-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+        }
+        .download-btn:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Mobile App Icon Generator</h1>
+        
+        <div class="instructions">
+            <h2>Instructions:</h2>
+            <ol>
+                <li>Upload your billing software icon image (PNG recommended)</li>
+                <li>The tool will generate all required sizes automatically</li>
+                <li>Download the generated icons</li>
+                <li>Place them in the <code>BillingUI/public/</code> folder</li>
+                <li>Clear browser cache and test on mobile device</li>
+            </ol>
+        </div>
+
+        <div class="file-input">
+            <label for="imageInput"><strong>Select Your Icon Image:</strong></label>
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+
+        <div class="preview" id="preview"></div>
+
+        <div class="download-section" id="downloadSection" style="display: none;">
+            <h3>Download Generated Icons:</h3>
+            <p>Click on each size to download:</p>
+            <div id="downloadLinks"></div>
+        </div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const preview = document.getElementById('preview');
+        const downloadSection = document.getElementById('downloadSection');
+        const downloadLinks = document.getElementById('downloadLinks');
+
+        const sizes = [
+            { name: 'icon-192.png', size: 192 },
+            { name: 'icon-512.png', size: 512 },
+            { name: 'apple-touch-icon.png', size: 180 },
+            { name: 'favicon-32x32.png', size: 32 }
+        ];
+
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // Show preview
+                    preview.innerHTML = '<h3>Preview:</h3>';
+                    sizes.forEach(({ name, size }) => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = size;
+                        canvas.height = size;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, size, size);
+                        
+                        const previewImg = document.createElement('img');
+                        previewImg.src = canvas.toDataURL('image/png');
+                        previewImg.alt = name;
+                        previewImg.title = `${name} (${size}x${size})`;
+                        preview.appendChild(previewImg);
+                    });
+
+                    // Create download links
+                    downloadLinks.innerHTML = '';
+                    sizes.forEach(({ name, size }) => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = size;
+                        canvas.height = size;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, size, size);
+                        
+                        canvas.toBlob(function(blob) {
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = name;
+                            link.className = 'download-btn';
+                            link.textContent = `Download ${name} (${size}x${size})`;
+                            downloadLinks.appendChild(link);
+                        }, 'image/png');
+                    });
+
+                    downloadSection.style.display = 'block';
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    </script>
+</body>
+</html>
+

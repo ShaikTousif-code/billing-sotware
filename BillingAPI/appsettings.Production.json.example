@@ -1,0 +1,69 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Warning",
+      "Microsoft.AspNetCore": "Warning",
+      "Microsoft.EntityFrameworkCore": "Warning"
+    }
+  },
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Warning",
+      "Override": {
+        "Microsoft": "Warning",
+        "Microsoft.AspNetCore": "Warning",
+        "Microsoft.EntityFrameworkCore": "Warning",
+        "System": "Warning",
+        "Hangfire": "Information"
+      }
+    },
+    "WriteTo": [
+      {
+        "Name": "Console",
+        "Args": {
+          "outputTemplate": "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
+        }
+      },
+      {
+        "Name": "File",
+        "Args": {
+          "path": "logs/billing-api-.log",
+          "rollingInterval": "Day",
+          "retainedFileCountLimit": 90,
+          "outputTemplate": "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj}{NewLine}{Exception}"
+        }
+      }
+    ],
+    "Enrich": [ "FromLogContext", "WithMachineName", "WithThreadId" ]
+  },
+  "AllowedHosts": "*",
+  "Hangfire": {
+    "Enabled": false
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "REPLACE_WITH_YOUR_PRODUCTION_DB_CONNECTION_STRING"
+  },
+  "JwtSettings": {
+    "SecretKey": "REPLACE_WITH_STRONG_SECRET_KEY_AT_LEAST_32_CHARACTERS",
+    "Issuer": "BillingAPI",
+    "Audience": "BillingClient",
+    "ExpirationMinutes": 1440
+  },
+  "Cors": {
+    "AllowedOrigins": [
+      "https://yourdomain.com",
+      "https://www.yourdomain.com"
+    ]
+  },
+  "SendGrid": {
+    "ApiKey": "REPLACE_WITH_SENDGRID_API_KEY_OR_LEAVE_EMPTY",
+    "FromEmail": "noreply@yourdomain.com",
+    "FromName": "Billing System"
+  },
+  "Twilio": {
+    "AccountSid": "REPLACE_WITH_TWILIO_ACCOUNT_SID_OR_LEAVE_EMPTY",
+    "AuthToken": "REPLACE_WITH_TWILIO_AUTH_TOKEN_OR_LEAVE_EMPTY",
+    "PhoneNumber": "REPLACE_WITH_TWILIO_PHONE_NUMBER_OR_LEAVE_EMPTY"
+  }
+}
+

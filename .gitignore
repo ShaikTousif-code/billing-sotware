@@ -1,0 +1,55 @@
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+[Bb]in/
+[Oo]bj/
+dist/
+build/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+!logs/.gitkeep
+
+# Dependencies
+node_modules/
+packages/
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets
+secrets.json
+appsettings.Production.json
+*.pfx
+*.key
+
+# Deployment files
+deploy.zip
+**/publish/
+**/deploy.zip
+
