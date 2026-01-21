@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import React from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import Login from './pages/Login'
@@ -37,14 +38,9 @@ import Documents from './pages/Documents'
 import BillScanner from './pages/BillScanner'
 import FeeConcessions from './pages/FeeConcessions'
 import PaymentHistory from './pages/PaymentHistory'
-import Appointments from './pages/Appointments'
 import TenantManagement from './pages/TenantManagement'
 import UserManagement from './pages/UserManagement'
 import ContactUs from './pages/ContactUs'
-import Patients from './pages/Patients'
-import Prescriptions from './pages/Prescriptions'
-import MedicalRecords from './pages/MedicalRecords'
-import MedicalCodes from './pages/MedicalCodes'
 import Pharmacy from './pages/Pharmacy'
 import Inventory from './pages/Inventory'
 import SizeCharts from './pages/SizeCharts'
@@ -59,6 +55,26 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { ThemeProvider } from './contexts/ThemeContext'
 import UpdateNotification from './components/UpdateNotification'
 
+// Wrapper component to provide navigation to ErrorBoundary
+// This component must be inside Router to use useNavigate
+function ErrorBoundaryWrapper({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate()
+
+  const handleNavigateBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1)
+    } else {
+      navigate('/dashboard', { replace: true })
+    }
+  }
+
+  return (
+    <ErrorBoundary onNavigateBack={handleNavigateBack}>
+      {children}
+    </ErrorBoundary>
+  )
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -66,6 +82,7 @@ function App() {
         <AuthProvider>
           <UpdateNotification />
           <Router>
+            <ErrorBoundaryWrapper>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route
@@ -122,18 +139,14 @@ function App() {
                 <Route path="milestones" element={<Milestones />} />
                 <Route path="documents" element={<Documents />} />
                 <Route path="fee-concessions" element={<FeeConcessions />} />
-                <Route path="appointments" element={<Appointments />} />
                 <Route path="reports" element={<Reports />} />
-                <Route path="patients" element={<Patients />} />
-                <Route path="prescriptions" element={<Prescriptions />} />
-                <Route path="medical-records" element={<MedicalRecords />} />
-                <Route path="medical-codes" element={<MedicalCodes />} />
                 <Route path="pharmacy" element={<Pharmacy />} />
                 <Route path="admin/tenants" element={<TenantManagement />} />
                 <Route path="admin/users" element={<UserManagement />} />
                 <Route path="contact-us" element={<ContactUs />} />
               </Route>
             </Routes>
+            </ErrorBoundaryWrapper>
           </Router>
         </AuthProvider>
       </ThemeProvider>

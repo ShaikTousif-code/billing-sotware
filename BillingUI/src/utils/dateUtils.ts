@@ -230,3 +230,69 @@ export const formatToLocalTime = (
   return formatDateFns(dateObj, formatString)
 }
 
+/**
+ * Gets the start of today in local timezone (00:00:00)
+ * @returns Date object representing start of today in local timezone
+ */
+export const getStartOfToday = (): Date => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+  return start
+}
+
+/**
+ * Gets the end of today in local timezone (23:59:59.999)
+ * @returns Date object representing end of today in local timezone
+ */
+export const getEndOfToday = (): Date => {
+  const now = new Date()
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  return end
+}
+
+/**
+ * Gets the start of a date in local timezone (00:00:00)
+ * @param date - Date to get start of
+ * @returns Date object representing start of the date in local timezone
+ */
+export const getStartOfDay = (date: Date): Date => {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0)
+}
+
+/**
+ * Gets the end of a date in local timezone (23:59:59.999)
+ * @param date - Date to get end of
+ * @returns Date object representing end of the date in local timezone
+ */
+export const getEndOfDay = (date: Date): Date => {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
+}
+
+/**
+ * Converts a local date to UTC ISO string for API calls
+ * This converts the local date to UTC, preserving the actual moment in time
+ * @param date - Local date to convert
+ * @returns ISO string in UTC
+ */
+export const localDateToUTCISO = (date: Date): string => {
+  // The date is already in local timezone
+  // toISOString() converts it to UTC, which is what we want for API calls
+  // This ensures the API receives the correct UTC time that corresponds to the local date
+  return date.toISOString()
+}
+
+/**
+ * Checks if two dates are on the same day in local timezone
+ * @param date1 - First date
+ * @param date2 - Second date
+ * @returns true if dates are on the same day
+ */
+export const isSameDay = (date1: Date | string, date2: Date | string): boolean => {
+  const d1 = date1 instanceof Date ? date1 : utcToLocal(date1)
+  const d2 = date2 instanceof Date ? date2 : utcToLocal(date2)
+  
+  return d1.getFullYear() === d2.getFullYear() &&
+         d1.getMonth() === d2.getMonth() &&
+         d1.getDate() === d2.getDate()
+}
+

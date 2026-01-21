@@ -143,12 +143,28 @@ public class ProductService : IProductService
         existingProduct.IsActive = product.IsActive;
         existingProduct.TrackInventory = product.TrackInventory;
         existingProduct.BatchNo = product.BatchNo;
+        existingProduct.ManufacturingDate = product.ManufacturingDate;
         existingProduct.ExpiryDate = product.ExpiryDate;
         existingProduct.Manufacturer = product.Manufacturer;
+        // Expiry configuration
+        existingProduct.ExpiryType = product.ExpiryType;
+        existingProduct.ExpireAfterValue = product.ExpireAfterValue;
+        existingProduct.ExpireAfterUnit = product.ExpireAfterUnit;
+        existingProduct.AlertBeforeValue = product.AlertBeforeValue;
+        existingProduct.AlertBeforeUnit = product.AlertBeforeUnit;
+        existingProduct.IsExpiryEnabled = product.IsExpiryEnabled;
+        // Purchase tracking
         existingProduct.LastPurchasePrice = product.LastPurchasePrice;
         existingProduct.LastPurchaseQuantity = product.LastPurchaseQuantity;
         existingProduct.LastPurchaseDate = product.LastPurchaseDate;
         existingProduct.SupplierName = product.SupplierName;
+        // RMG fields
+        existingProduct.StyleCode = product.StyleCode;
+        existingProduct.Season = product.Season;
+        existingProduct.Collection = product.Collection;
+        existingProduct.Gender = product.Gender;
+        existingProduct.FabricType = product.FabricType;
+        existingProduct.SizeChartId = product.SizeChartId;
         existingProduct.UpdatedAt = DateTime.UtcNow;
         
         // Initialize StockQuantity if TrackInventory is enabled and it's null

@@ -5,7 +5,7 @@ namespace BillingAPI.Services;
 public interface IReportService
 {
     Task<SalesReport> GetSalesReportAsync(int tenantId, DateTime fromDate, DateTime toDate);
-    Task<ProductSalesReport> GetProductSalesReportAsync(int tenantId, DateTime fromDate, DateTime toDate);
+    Task<ProductSalesReport> GetProductSalesReportAsync(int tenantId, DateTime fromDate, DateTime toDate, int? productId = null);
     Task<StockSummaryReport> GetStockSummaryAsync(int tenantId);
     Task<CustomerLedgerReport> GetCustomerLedgerAsync(int tenantId, int customerId, DateTime? fromDate = null, DateTime? toDate = null);
     Task<TaxSummaryReport> GetTaxSummaryAsync(int tenantId, DateTime fromDate, DateTime toDate);
@@ -19,6 +19,8 @@ public class SalesReport
     public decimal TotalTax { get; set; }
     public decimal TotalDiscount { get; set; }
     public int TotalInvoices { get; set; }
+    public decimal? TotalCost { get; set; }
+    public decimal? TotalProfit { get; set; }
     public List<DailySales> DailySales { get; set; } = new();
 }
 
@@ -40,6 +42,8 @@ public class ProductSalesItem
     public string ProductName { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal TotalAmount { get; set; }
+    public decimal TotalCost { get; set; }
+    public decimal Profit { get; set; }
 }
 
 public class StockSummaryReport

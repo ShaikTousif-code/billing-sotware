@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../services/api'
 import { format } from 'date-fns'
-import { Plus, Trash2, DollarSign, CreditCard, Search } from 'lucide-react'
+import { Plus, DollarSign, CreditCard, Search } from 'lucide-react'
 import { Payment, Invoice } from '../types'
 import { getLocalDate, formatToLocalTime } from '../utils/dateUtils'
 import { TableSkeleton } from '../components/LoadingSkeleton'
@@ -208,17 +208,6 @@ const Payments = () => {
     }
   }
 
-  const handleDelete = async (id: number): Promise<void> => {
-    if (window.confirm('Are you sure you want to delete this payment?')) {
-      try {
-        await api.delete(`/payments/${id}`)
-        fetchPayments()
-      } catch (error) {
-        console.error('Error deleting payment:', error)
-        alert('Failed to delete payment')
-      }
-    }
-  }
 
   if (loading && payments.length === 0) {
     return (
@@ -447,15 +436,12 @@ const Payments = () => {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                   Transaction ID
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {payments.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4">
+                  <td colSpan={4} className="px-6 py-4">
                     <EmptyState
                       icon={DollarSign}
                       title={searchTerm || getActiveFilterCount() > 0 ? "No payments found" : "No payments yet"}
@@ -479,15 +465,6 @@ const Payments = () => {
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden sm:table-cell">
                       {payment.transactionId || '-'}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right text-xs sm:text-sm font-medium">
-                      <button
-                        onClick={() => handleDelete(payment.id)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Delete payment"
-                      >
-                        <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
-                      </button>
                     </td>
                   </tr>
                 ))

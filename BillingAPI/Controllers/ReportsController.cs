@@ -26,10 +26,10 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("product-sales")]
-    public async Task<IActionResult> GetProductSalesReport([FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)
+    public async Task<IActionResult> GetProductSalesReport([FromQuery] DateTime fromDate, [FromQuery] DateTime toDate, [FromQuery] int? productId = null)
     {
         var tenantId = GetTenantId();
-        var report = await _reportService.GetProductSalesReportAsync(tenantId, fromDate, toDate);
+        var report = await _reportService.GetProductSalesReportAsync(tenantId, fromDate, toDate, productId);
         return Ok(report);
     }
 

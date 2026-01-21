@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import api from '../services/api'
-import { formatDate, getLocalDate } from '../utils/dateUtils'
+import { formatDate, getLocalDate, getStartOfToday, getEndOfToday, isSameDay, localDateToUTCISO, utcToLocal } from '../utils/dateUtils'
 import {
   DollarSign,
   ShoppingCart,
@@ -210,9 +210,16 @@ const Dashboard = () => {
 
   const fetchDashboardData = async (): Promise<void> => {
     try {
+      // Use local timezone for all date calculations
       const today = new Date()
+      const startOfToday = getStartOfToday()
+      const endOfToday = getEndOfToday()
       const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
       const lastMonth = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+      
+      // Convert local dates to UTC for API calls
+      const lastMonthUTC = localDateToUTCISO(lastMonth)
+      const todayUTC = localDateToUTCISO(endOfToday)
 
       const [
         invoicesRes,
@@ -228,10 +235,10 @@ const Dashboard = () => {
         patientsRes,
       ] = await Promise.all([
         api.get<Invoice[]>('/invoices').catch(() => ({ data: [] })),
-        api.get<{ data: Customer[] }>('/customers').catch(() => ({ data: { data: [] } })),
-        api.get<{ data: Product[] }>('/products').catch(() => ({ data: { data: [] } })),
+        api.get<{ success: boolean; data: { data: Customer[]; totalCount: number } }>('/customers', { params: { page: 1, pageSize: 10000 } }).catch(() => ({ data: { data: { data: [] } } })),
+        api.get<{ success: boolean; data: { data: Product[]; totalCount: number } }>('/products', { params: { page: 1, pageSize: 10000 } }).catch(() => ({ data: { data: { data: [] } } })),
         api
-          .get<SalesReport>(`/reports/sales?fromDate=${lastMonth.toISOString()}&toDate=${today.toISOString()}`)
+          .get<SalesReport>(`/reports/sales?fromDate=${lastMonthUTC}&toDate=${todayUTC}`)
           .catch(() => ({ data: null })),
         api.get('/students').catch(() => ({ data: { data: { data: [] } } })),
         api.get('/fees').catch(() => ({ data: { data: { data: [] } } })),
@@ -243,24 +250,64 @@ const Dashboard = () => {
       ])
 
       const invoices = invoicesRes.data || []
-      // Handle wrapped customers response
-      const customersData = customersRes.data?.data || customersRes.data || []
-      const customers = Array.isArray(customersData) ? customersData : []
-      // Handle wrapped products response
-      const productsData = productsRes.data?.data || productsRes.data || []
-      const products = Array.isArray(productsData) ? productsData : []
+      
+      // Handle wrapped customers response - API returns ApiResponse<PaginatedResponse<Customer>>
+      let customers: Customer[] = []
+      let customersTotalCount = 0
+      if (customersRes.data) {
+        // Check for paginated response structure
+        if (customersRes.data.data && customersRes.data.data.data && Array.isArray(customersRes.data.data.data)) {
+          customers = customersRes.data.data.data // Nested: ApiResponse<PaginatedResponse<Customer>>
+          customersTotalCount = customersRes.data.data.totalCount || customers.length
+        } else if (customersRes.data.data && Array.isArray(customersRes.data.data)) {
+          customers = customersRes.data.data // PaginatedResponse.Data
+          customersTotalCount = customersRes.data.totalCount || customers.length
+        } else if (Array.isArray(customersRes.data)) {
+          customers = customersRes.data // Direct array
+          customersTotalCount = customers.length
+        }
+      }
+      
+      // Handle wrapped products response - API returns ApiResponse<PaginatedResponse<Product>>
+      let products: Product[] = []
+      let productsTotalCount = 0
+      if (productsRes.data) {
+        // Check for paginated response structure
+        if (productsRes.data.data && productsRes.data.data.data && Array.isArray(productsRes.data.data.data)) {
+          products = productsRes.data.data.data // Nested: ApiResponse<PaginatedResponse<Product>>
+          productsTotalCount = productsRes.data.data.totalCount || products.length
+        } else if (productsRes.data.data && Array.isArray(productsRes.data.data)) {
+          products = productsRes.data.data // PaginatedResponse.Data
+          productsTotalCount = productsRes.data.totalCount || products.length
+        } else if (Array.isArray(productsRes.data)) {
+          products = productsRes.data // Direct array
+          productsTotalCount = products.length
+        }
+      }
+      
+      // Debug logging
+      if (customersTotalCount === 0 || productsTotalCount === 0) {
+        console.log('Dashboard Debug:', {
+          customersResponse: customersRes.data,
+          productsResponse: productsRes.data,
+          customersCount: customersTotalCount,
+          productsCount: productsTotalCount
+        })
+      }
       const salesReport = salesReportRes.data
 
       const completedInvoices = invoices.filter((inv) => inv.status === 'Completed')
-      const todayInvoices = completedInvoices.filter(
-        (inv) => new Date(inv.invoiceDate).toDateString() === today.toDateString()
-      )
+      // Filter today's invoices using local timezone comparison
+      const todayInvoices = completedInvoices.filter((inv) => {
+        const invDate = utcToLocal(inv.invoiceDate)
+        return isSameDay(invDate, today)
+      })
 
       // School data
       const students = studentsRes.data?.data?.data || studentsRes.data?.data || []
       const fees = feesRes.data?.data?.data || feesRes.data?.data || []
       const feePayments = await api
-        .get('/fee-receipts/payment', { params: { fromDate: lastMonth.toISOString() } })
+        .get('/fee-receipts/payment', { params: { fromDate: localDateToUTCISO(lastMonth) } })
         .catch(() => ({ data: { data: [] } }))
       // ApiResponse structure: { success: true, data: List<FeePayment> }
       const payments = feePayments.data?.data || []
@@ -310,23 +357,25 @@ const Dashboard = () => {
       // Medical data
       const appointments = appointmentsRes.data?.data?.data || appointmentsRes.data?.data || []
       const patients = patientsRes.data?.data?.data || patientsRes.data?.data || []
+      // Filter appointments using local timezone
       const todayAppointmentsList = appointments.filter((apt: any) => {
-        const aptDate = new Date(apt.appointmentDate)
-        return aptDate.toDateString() === today.toDateString()
+        const aptDate = utcToLocal(apt.appointmentDate)
+        return isSameDay(aptDate, today)
       })
       const upcomingAppointmentsList = appointments.filter((apt: any) => {
-        const aptDate = new Date(apt.appointmentDate)
-        return aptDate >= today && apt.status !== 'Completed' && apt.status !== 'Cancelled'
+        const aptDate = utcToLocal(apt.appointmentDate)
+        return aptDate >= startOfToday && apt.status !== 'Completed' && apt.status !== 'Cancelled'
       })
       const consultationFees = appointments
         .filter((apt: any) => apt.status === 'Completed' && apt.consultationFee)
         .reduce((sum: number, apt: any) => sum + (apt.consultationFee || 0), 0)
 
+      // Calculate stats with proper fallbacks - use totalCount from API if available
       setStats({
         totalSales: completedInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0),
         todaySales: todayInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0),
-        totalCustomers: customers?.length || 0,
-        totalProducts: products?.length || 0,
+        totalCustomers: customersTotalCount || 0,
+        totalProducts: productsTotalCount || 0,
         salesGrowth: 0,
         totalFeesCollected: payments?.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) || 0,
         outstandingFees: fees?.reduce((sum: number, f: any) => sum + (f.balanceAmount || 0), 0) || 0,
@@ -374,22 +423,22 @@ const Dashboard = () => {
 
   const retailStatCards: StatCard[] = [
     {
-      name: 'Total Sales',
+      name: 'Total Money Earned',
       value: `₹${(stats.totalSales ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
       icon: DollarSign,
     },
     {
-      name: "Today's Sales",
+      name: "Today's Earnings",
       value: `₹${(stats.todaySales ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
       icon: ShoppingCart,
     },
     {
-      name: 'Customers',
+      name: 'Total Customers',
       value: (stats.totalCustomers ?? 0).toString(),
       icon: Users,
     },
     {
-      name: 'Products',
+      name: 'Total Products',
       value: (stats.totalProducts ?? 0).toString(),
       icon: Package,
     },
@@ -397,22 +446,22 @@ const Dashboard = () => {
 
   const schoolStatCards: StatCard[] = [
     {
-      name: `Fees Collected (${stats.currentAcademicYear || 'Current Year'})`,
+      name: `Fees Received (${stats.currentAcademicYear || 'This Year'})`,
       value: `₹${(stats.currentAcademicYearFeesCollected ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
       icon: DollarSign,
     },
     {
-      name: 'Student Strength',
+      name: 'Total Students',
       value: (stats.totalStudents ?? 0).toString(),
       icon: Users,
     },
     {
-      name: 'Outstanding Fees',
+      name: 'Pending Fees',
       value: `₹${(stats.outstandingFees ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
       icon: GraduationCap,
     },
     {
-      name: 'Fee Collection Rate',
+      name: 'Collection Success Rate',
       value: `${(stats.currentAcademicYearFeesCollected ?? 0) > 0 ? (((stats.currentAcademicYearFeesCollected ?? 0) / ((stats.currentAcademicYearFeesCollected ?? 0) + (stats.outstandingFees ?? 0))) * 100).toFixed(1) : 0}%`,
       icon: GraduationCap,
     },
@@ -420,12 +469,12 @@ const Dashboard = () => {
 
   const officeStatCards: StatCard[] = [
     {
-      name: 'Active Projects',
+      name: 'Running Projects',
       value: (stats.activeProjects ?? 0).toString(),
       icon: Target,
     },
     {
-      name: 'Project Revenue',
+      name: 'Total Revenue',
       value: `₹${(stats.projectRevenue ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
       icon: DollarSign,
     },
@@ -435,7 +484,7 @@ const Dashboard = () => {
       icon: Building2,
     },
     {
-      name: 'Billable Hours',
+      name: 'Work Hours (Billable)',
       value: (stats.billableHours ?? 0).toFixed(1),
       icon: Clock,
     },
@@ -443,7 +492,7 @@ const Dashboard = () => {
 
   const medicalStatCards: StatCard[] = [
     {
-      name: 'Consultation Fees',
+      name: 'Consultation Fees Received',
       value: `₹${(stats.consultationFeesCollected ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
       icon: DollarSign,
     },
@@ -482,7 +531,7 @@ const Dashboard = () => {
         <div className="flex-1 min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Dashboard</h1>
           <p className="mt-1 text-xs sm:text-sm text-gray-500 break-words">
-            Welcome back, {userName}! ({userRoleDisplay}) - Here's what's happening with your {businessType === 'school' ? 'school' : businessType === 'office' ? 'office' : businessType === 'medical' ? 'medical practice' : 'business'} today.
+            Welcome back, {userName}! Here's a quick summary of your {businessType === 'school' ? 'school' : businessType === 'office' ? 'office' : businessType === 'medical' ? 'clinic' : 'business'} today.
           </p>
         </div>
         {canViewBusinessTypeSelector() && (
@@ -866,7 +915,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
           <div className="bg-white shadow rounded-lg p-4 sm:p-6 overflow-hidden">
             <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4 truncate">
-              {businessType === 'school' ? 'Fee Collection Trend' : businessType === 'office' ? 'Project Revenue Trend' : businessType === 'medical' ? 'Consultation Fees Trend' : 'Sales Trend'} (Last 7 Days)
+              {businessType === 'school' ? 'Fee Collection (Last 7 Days)' : businessType === 'office' ? 'Project Revenue (Last 7 Days)' : businessType === 'medical' ? 'Consultation Fees (Last 7 Days)' : 'Sales (Last 7 Days)'}
           </h3>
             <div className="w-full" style={{ minHeight: '250px' }}>
           <ResponsiveContainer width="100%" height={300}>
@@ -884,7 +933,7 @@ const Dashboard = () => {
 
           <div className="bg-white shadow rounded-lg p-4 sm:p-6 overflow-hidden">
             <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4 truncate">
-              {businessType === 'school' ? 'Fee Payments' : businessType === 'office' ? 'Project Status' : businessType === 'medical' ? 'Appointments' : 'Daily Invoices'}
+              {businessType === 'school' ? 'Daily Fee Payments' : businessType === 'office' ? 'Project Status' : businessType === 'medical' ? 'Daily Appointments' : 'Daily Invoices'}
           </h3>
             <div className="w-full" style={{ minHeight: '250px' }}>
           <ResponsiveContainer width="100%" height={300}>

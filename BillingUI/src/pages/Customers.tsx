@@ -57,10 +57,26 @@ const Customers = () => {
 
   const fetchCustomers = async (): Promise<void> => {
     try {
-      const params = debouncedSearch ? { search: debouncedSearch } : {}
-      const response = await api.get<{ data: Customer[] }>('/customers', { params })
-      // Handle wrapped response structure
-      const customersData = response.data?.data || response.data || []
+      const params: any = debouncedSearch ? { search: debouncedSearch } : {}
+      // Request a large page size to get all customers (or use pagination if needed)
+      params.page = 1
+      params.pageSize = 10000
+      
+      const response = await api.get<{ success: boolean; data: { data: Customer[]; totalCount: number } }>('/customers', { params })
+      
+      // Handle paginated response structure: ApiResponse<PaginatedResponse<Customer>>
+      let customersData: Customer[] = []
+      if (response.data) {
+        // Check for nested paginated response structure
+        if (response.data.data && response.data.data.data && Array.isArray(response.data.data.data)) {
+          customersData = response.data.data.data // Nested: ApiResponse<PaginatedResponse<Customer>>
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          customersData = response.data.data // PaginatedResponse.Data
+        } else if (Array.isArray(response.data)) {
+          customersData = response.data // Direct array (fallback)
+        }
+      }
+      
       setCustomers(Array.isArray(customersData) ? customersData : [])
     } catch (error) {
       console.error('Error fetching customers:', error)

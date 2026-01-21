@@ -25,25 +25,46 @@ const Reports = () => {
   const [productSalesReport, setProductSalesReport] = useState<ProductSalesReport | null>(null)
   const [stockReport, setStockReport] = useState<StockSummaryReport | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
+  const [products, setProducts] = useState<any[]>([])
+  const [selectedProductId, setSelectedProductId] = useState<number | ''>('')
   const [dateRange, setDateRange] = useState<DateRange>({
     fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     toDate: new Date().toISOString().split('T')[0],
   })
 
   useEffect(() => {
+    fetchProducts()
+  }, [])
+
+  useEffect(() => {
     fetchReports()
-  }, [dateRange])
+  }, [dateRange, selectedProductId])
+
+  const fetchProducts = async (): Promise<void> => {
+    try {
+      const response = await api.get<{ success: boolean; data: { data: any[] } }>('/products', { params: { page: 1, pageSize: 10000 } })
+      let productsData: any[] = []
+      if (response.data?.data?.data && Array.isArray(response.data.data.data)) {
+        productsData = response.data.data.data
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        productsData = response.data.data
+      }
+      setProducts(productsData)
+    } catch (error) {
+      console.error('Error fetching products:', error)
+    }
+  }
 
   const fetchReports = async (): Promise<void> => {
     setLoading(true)
     try {
+      const productSalesUrl = `/reports/product-sales?fromDate=${dateRange.fromDate}&toDate=${dateRange.toDate}${selectedProductId ? `&productId=${selectedProductId}` : ''}`
+      
       const [sales, productSales, stock] = await Promise.all([
         api.get<SalesReport>(
           `/reports/sales?fromDate=${dateRange.fromDate}&toDate=${dateRange.toDate}`
         ),
-        api.get<ProductSalesReport>(
-          `/reports/product-sales?fromDate=${dateRange.fromDate}&toDate=${dateRange.toDate}`
-        ),
+        api.get<ProductSalesReport>(productSalesUrl),
         api.get<StockSummaryReport>('/reports/stock-summary'),
       ])
 
@@ -100,7 +121,7 @@ const Reports = () => {
           <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
             Sales Summary
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-4 sm:mb-6">
             <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
               <div className="text-xs sm:text-sm text-gray-600">Total Sales</div>
               <div className="text-lg sm:text-2xl font-bold text-gray-900">
@@ -123,6 +144,14 @@ const Reports = () => {
               <div className="text-xs sm:text-sm text-gray-600">Total Invoices</div>
               <div className="text-lg sm:text-2xl font-bold text-gray-900">
                 {salesReport.totalInvoices || 0}
+              </div>
+            </div>
+            <div className="bg-green-50 p-3 sm:p-4 rounded-lg">
+              <div className="text-xs sm:text-sm text-gray-600">Total Profit</div>
+              <div className={`text-lg sm:text-2xl font-bold ${
+                (salesReport.totalProfit ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                ₹{(salesReport.totalProfit ?? 0).toFixed(2)}
               </div>
             </div>
           </div>
@@ -156,9 +185,25 @@ const Reports = () => {
       {/* Product Sales */}
       {productSalesReport && productSalesReport.items && (
         <div className="bg-white shadow rounded-lg p-4 sm:p-6">
-          <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
-            Top Selling Products
-          </h2>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
+            <h2 className="text-base sm:text-lg font-medium text-gray-900">
+              Product Sales Report
+            </h2>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <select
+                value={selectedProductId}
+                onChange={(e) => setSelectedProductId(e.target.value ? Number(e.target.value) : '')}
+                className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">All Products</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -170,25 +215,70 @@ const Reports = () => {
                     Quantity
                   </th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Total Amount
+                    Total Sales
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Total Cost
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Profit
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {productSalesReport.items.slice(0, 10).map((item) => (
-                  <tr key={item.productId}>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
-                      {item.productName}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-                      {item.quantity}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
-                      ₹{item.totalAmount.toFixed(2)}
+                {productSalesReport.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
+                      No sales data found for the selected period{selectedProductId ? ' and product' : ''}
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  productSalesReport.items.map((item) => (
+                    <tr key={item.productId} className="hover:bg-gray-50">
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
+                        {item.productName}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                        {item.quantity}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
+                        ₹{item.totalAmount.toFixed(2)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                        ₹{(item.totalCost || 0).toFixed(2)}
+                      </td>
+                      <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium ${
+                        (item.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        ₹{(item.profit || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
+              {productSalesReport.items.length > 0 && (
+                <tfoot className="bg-gray-50">
+                  <tr>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-bold text-gray-900">
+                      Total
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-bold text-gray-900">
+                      {productSalesReport.items.reduce((sum, item) => sum + item.quantity, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-bold text-gray-900">
+                      ₹{productSalesReport.items.reduce((sum, item) => sum + item.totalAmount, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-bold text-gray-900">
+                      ₹{productSalesReport.items.reduce((sum, item) => sum + (item.totalCost || 0), 0).toFixed(2)}
+                    </td>
+                    <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-bold ${
+                      productSalesReport.items.reduce((sum, item) => sum + (item.profit || 0), 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      ₹{productSalesReport.items.reduce((sum, item) => sum + (item.profit || 0), 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>

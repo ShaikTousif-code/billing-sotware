@@ -200,6 +200,7 @@ builder.Services.AddScoped<IProductVariantCombinationService, ProductVariantComb
 builder.Services.AddScoped<ISizeChartService, SizeChartService>();
 builder.Services.AddScoped<ISalesReturnService, SalesReturnService>();
 builder.Services.AddScoped<ISalesExchangeService, SalesExchangeService>();
+builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 
 // Hangfire - Configure with minimal blocking options (can be disabled via env var)
 // Default to false to prevent issues if database is not available

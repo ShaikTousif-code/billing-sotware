@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using BillingAPI.Services;
 using BillingAPI.Models;
 using BillingAPI.DTOs;
+using BillingAPI.Data;
 using System.Security.Claims;
 
 namespace BillingAPI.Controllers;
@@ -15,12 +16,14 @@ public class BillScannerController : ControllerBase
     private readonly IBillScannerService _billScannerService;
     private readonly IProductService _productService;
     private readonly IInventoryService _inventoryService;
+    private readonly ApplicationDbContext _context;
 
-    public BillScannerController(IBillScannerService billScannerService, IProductService productService, IInventoryService inventoryService)
+    public BillScannerController(IBillScannerService billScannerService, IProductService productService, IInventoryService inventoryService, ApplicationDbContext context)
     {
         _billScannerService = billScannerService;
         _productService = productService;
         _inventoryService = inventoryService;
+        _context = context;
     }
 
     [HttpPost("scan")]
@@ -269,6 +272,43 @@ public class BillScannerController : ControllerBase
             if (product.TrackInventory && request.StockQuantity.HasValue)
             {
                 await _inventoryService.UpdateInventoryAsync(product.Id, tenantId, request.StockQuantity.Value, request.CostPrice, addToExisting: true);
+                
+                // Create batch if expiry information is provided
+                if (product.IsExpiryEnabled && (!string.IsNullOrWhiteSpace(request.BatchNo) || !string.IsNullOrWhiteSpace(request.ExpiryDate) || product.ManufacturingDate.HasValue))
+                {
+                    DateTime? expiryDate = null;
+                    if (!string.IsNullOrWhiteSpace(request.ExpiryDate))
+                    {
+                        expiryDate = DateTime.Parse(request.ExpiryDate);
+                    }
+                    else if (product.ExpiryType == "DURATION" && product.ManufacturingDate.HasValue)
+                    {
+                        expiryDate = ExpiryService.CalculateExpiryDate(product.ManufacturingDate, product);
+                    }
+                    else if (product.ExpiryType == "FIXED_DATE" && product.ExpiryDate.HasValue)
+                    {
+                        expiryDate = product.ExpiryDate;
+                    }
+
+                    if (expiryDate.HasValue)
+                    {
+                        var batchStatus = ExpiryService.EvaluateBatchStatus(expiryDate, product);
+                        var batch = new Batch
+                        {
+                            TenantId = tenantId,
+                            ProductId = product.Id,
+                            BatchNumber = request.BatchNo ?? $"BATCH-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                            ManufacturingDate = product.ManufacturingDate,
+                            ExpiryDate = expiryDate,
+                            Quantity = request.StockQuantity.Value,
+                            UnitCost = request.CostPrice ,
+                            IsExpired = batchStatus == "EXPIRED",
+                            Status = batchStatus
+                        };
+                        _context.Batches.Add(batch);
+                        await _context.SaveChangesAsync();
+                    }
+                }
             }
 
             return Ok(new { message = "Product updated successfully", product });

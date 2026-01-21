@@ -36,6 +36,16 @@ const NewProduct = () => {
     type: 'Product' as 'Product' | 'Service',
     trackInventory: true,
     isActive: true,
+    // Expiry configuration
+    expiryType: 'FIXED_DATE' as 'FIXED_DATE' | 'DURATION',
+    expireAfterValue: '',
+    expireAfterUnit: 'MONTHS' as 'DAYS' | 'MONTHS' | 'YEARS',
+    alertBeforeValue: '30',
+    alertBeforeUnit: 'DAYS' as 'DAYS' | 'MONTHS',
+    isExpiryEnabled: false,
+    // Manufacturing and expiry dates
+    manufacturingDate: '',
+    expiryDate: '',
     // RMG fields
     styleCode: '',
     season: '',
@@ -120,6 +130,16 @@ const NewProduct = () => {
           type: product.type === 2 ? 'Service' : 'Product',
           trackInventory: product.trackInventory ?? true,
           isActive: product.isActive ?? true,
+          // Expiry configuration
+          expiryType: product.expiryType || 'FIXED_DATE',
+          expireAfterValue: product.expireAfterValue?.toString() || '',
+          expireAfterUnit: product.expireAfterUnit || 'MONTHS',
+          alertBeforeValue: product.alertBeforeValue?.toString() || '30',
+          alertBeforeUnit: product.alertBeforeUnit || 'DAYS',
+          isExpiryEnabled: product.isExpiryEnabled || false,
+          // Manufacturing and expiry dates
+          manufacturingDate: product.manufacturingDate ? new Date(product.manufacturingDate).toISOString().slice(0, 10) : '',
+          expiryDate: product.expiryDate ? new Date(product.expiryDate).toISOString().slice(0, 10) : '',
           // RMG fields
           styleCode: product.styleCode || '',
           season: product.season || '',
@@ -172,15 +192,85 @@ const NewProduct = () => {
     }
   }
 
+  const calculateExpiryDate = (manufacturingDate: string, expireAfterValue: string, expireAfterUnit: string): string => {
+    if (!manufacturingDate || !expireAfterValue || !expireAfterUnit) {
+      return ''
+    }
+
+    const mfgDate = new Date(manufacturingDate)
+    if (isNaN(mfgDate.getTime())) {
+      return ''
+    }
+
+    const value = parseInt(expireAfterValue)
+    if (isNaN(value) || value <= 0) {
+      return ''
+    }
+
+    const expiryDate = new Date(mfgDate)
+    
+    switch (expireAfterUnit.toUpperCase()) {
+      case 'DAYS':
+        expiryDate.setDate(expiryDate.getDate() + value)
+        break
+      case 'MONTHS':
+        expiryDate.setMonth(expiryDate.getMonth() + value)
+        break
+      case 'YEARS':
+        expiryDate.setFullYear(expiryDate.getFullYear() + value)
+        break
+      default:
+        return ''
+    }
+
+    return expiryDate.toISOString().slice(0, 10)
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>): void => {
     const { name, value, type } = e.target
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked
       setFormData(prev => ({ ...prev, [name]: checked }))
-    } else if (name === 'costPrice' || name === 'sellingPrice' || name === 'taxRate' || name === 'stockQuantity' || name === 'lowStockAlert') {
-      setFormData(prev => ({ ...prev, [name]: value === '' ? '' : value }))
+    } else if (name === 'costPrice' || name === 'sellingPrice' || name === 'taxRate' || name === 'stockQuantity' || name === 'lowStockAlert' || name === 'expireAfterValue' || name === 'alertBeforeValue') {
+      setFormData(prev => {
+        const updated = { ...prev, [name]: value === '' ? '' : value }
+        // Auto-calculate expiry date if DURATION type and manufacturing date + expire after are provided
+        if (prev.expiryType === 'DURATION' && prev.isExpiryEnabled) {
+          const manufacturingDate = name === 'manufacturingDate' ? value : prev.manufacturingDate
+          const expireAfterValue = name === 'expireAfterValue' ? value : updated.expireAfterValue
+          const expireAfterUnit = name === 'expireAfterUnit' ? value : prev.expireAfterUnit
+          const calculatedExpiry = calculateExpiryDate(manufacturingDate, expireAfterValue, expireAfterUnit)
+          if (calculatedExpiry) {
+            updated.expiryDate = calculatedExpiry
+          } else {
+            updated.expiryDate = ''
+          }
+        }
+        return updated
+      })
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }))
+      setFormData(prev => {
+        const updated = { ...prev, [name]: value }
+        // Auto-calculate expiry date if DURATION type and manufacturing date + expire after are provided
+        if (prev.expiryType === 'DURATION' && prev.isExpiryEnabled && 
+            (name === 'manufacturingDate' || name === 'expireAfterValue' || name === 'expireAfterUnit')) {
+          const manufacturingDate = name === 'manufacturingDate' ? value : prev.manufacturingDate
+          const expireAfterValue = name === 'expireAfterValue' ? value : prev.expireAfterValue
+          const expireAfterUnit = name === 'expireAfterUnit' ? value : prev.expireAfterUnit
+          const calculatedExpiry = calculateExpiryDate(manufacturingDate, expireAfterValue, expireAfterUnit)
+          if (calculatedExpiry) {
+            updated.expiryDate = calculatedExpiry
+          } else {
+            updated.expiryDate = ''
+          }
+        } else if (name === 'expiryType' && value === 'FIXED_DATE') {
+          // Clear auto-calculated expiry date when switching to FIXED_DATE
+          if (prev.expiryType === 'DURATION') {
+            updated.expiryDate = ''
+          }
+        }
+        return updated
+      })
     }
   }
 
@@ -232,6 +322,35 @@ const NewProduct = () => {
       if (formData.barcode.trim()) productPayload.barcode = formData.barcode.trim()
       if (formData.unit) productPayload.unit = formData.unit
       if (formData.lowStockAlert) productPayload.lowStockAlert = parseInt(formData.lowStockAlert)
+      
+      // Expiry configuration
+      if (formData.isExpiryEnabled) {
+        productPayload.expiryType = formData.expiryType
+        if (formData.expireAfterValue) {
+          productPayload.expireAfterValue = parseInt(formData.expireAfterValue)
+        }
+        if (formData.expireAfterUnit) {
+          productPayload.expireAfterUnit = formData.expireAfterUnit
+        }
+        if (formData.alertBeforeValue) {
+          productPayload.alertBeforeValue = parseInt(formData.alertBeforeValue)
+        }
+        if (formData.alertBeforeUnit) {
+          productPayload.alertBeforeUnit = formData.alertBeforeUnit
+        }
+        productPayload.isExpiryEnabled = true
+      } else {
+        productPayload.isExpiryEnabled = false
+      }
+      
+      // Manufacturing and expiry dates
+      if (formData.manufacturingDate) {
+        productPayload.manufacturingDate = new Date(formData.manufacturingDate).toISOString()
+      }
+      // Save expiry date (either fixed or auto-calculated from DURATION)
+      if (formData.expiryDate) {
+        productPayload.expiryDate = new Date(formData.expiryDate).toISOString()
+      }
       
       // RMG fields
       if (formData.styleCode.trim()) productPayload.styleCode = formData.styleCode.trim()
@@ -596,6 +715,142 @@ const NewProduct = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
                       placeholder="0"
                     />
+                  </div>
+
+                  {/* Expiry Configuration Section */}
+                  <div className="md:col-span-2">
+                    <div className="flex items-center mb-4">
+                      <input
+                        type="checkbox"
+                        id="isExpiryEnabled"
+                        checked={formData.isExpiryEnabled}
+                        onChange={(e) => setFormData(prev => ({ ...prev, isExpiryEnabled: e.target.checked }))}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="isExpiryEnabled" className="ml-2 block text-sm font-medium text-gray-700">
+                        Enable Expiry Tracking
+                      </label>
+                    </div>
+
+                    {formData.isExpiryEnabled && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6 border-l-2 border-gray-200">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Type *</label>
+                          <select
+                            name="expiryType"
+                            value={formData.expiryType}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                          >
+                            <option value="FIXED_DATE">Fixed Expiry Date</option>
+                            <option value="DURATION">Expire After (Duration)</option>
+                          </select>
+                        </div>
+
+                        {formData.expiryType === 'DURATION' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Expire After Value *</label>
+                              <input
+                                type="number"
+                                name="expireAfterValue"
+                                value={formData.expireAfterValue}
+                                onChange={handleChange}
+                                min="1"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                                placeholder="e.g., 6"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Expire After Unit *</label>
+                              <select
+                                name="expireAfterUnit"
+                                value={formData.expireAfterUnit}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                              >
+                                <option value="DAYS">Days</option>
+                                <option value="MONTHS">Months</option>
+                                <option value="YEARS">Years</option>
+                              </select>
+                            </div>
+                          </>
+                        )}
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Alert Before Value *</label>
+                          <input
+                            type="number"
+                            name="alertBeforeValue"
+                            value={formData.alertBeforeValue}
+                            onChange={handleChange}
+                            min="1"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                            placeholder="e.g., 30"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Alert Before Unit *</label>
+                          <select
+                            name="alertBeforeUnit"
+                            value={formData.alertBeforeUnit}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                          >
+                            <option value="DAYS">Days</option>
+                            <option value="MONTHS">Months</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Manufacturing and Expiry Date Fields */}
+                    {formData.isExpiryEnabled && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6 border-l-2 border-gray-200 mt-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Manufacturing Date</label>
+                          <input
+                            type="date"
+                            name="manufacturingDate"
+                            value={formData.manufacturingDate}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formData.expiryType === 'DURATION' 
+                              ? 'Used to calculate expiry date (required for DURATION type)'
+                              : 'Manufacturing date for reference'}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Expiry Date
+                            {formData.expiryType === 'DURATION' && formData.expiryDate && (
+                              <span className="ml-2 text-xs text-green-600">(Auto-calculated)</span>
+                            )}
+                          </label>
+                          <input
+                            type="date"
+                            name="expiryDate"
+                            value={formData.expiryDate}
+                            onChange={handleChange}
+                            disabled={formData.expiryType === 'DURATION' && formData.manufacturingDate && formData.expireAfterValue}
+                            className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 ${
+                              formData.expiryType === 'DURATION' && formData.manufacturingDate && formData.expireAfterValue
+                                ? 'bg-gray-100 cursor-not-allowed'
+                                : ''
+                            }`}
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            {formData.expiryType === 'FIXED_DATE' 
+                              ? 'Fixed expiry date for this product'
+                              : formData.expiryType === 'DURATION' && formData.manufacturingDate && formData.expireAfterValue
+                              ? 'Automatically calculated from Manufacturing Date + Expire After'
+                              : 'Enter expiry date or use DURATION type to auto-calculate'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>

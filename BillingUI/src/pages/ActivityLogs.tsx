@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { format } from 'date-fns'
 import { Activity, Eye, Filter, X, Calendar, User, FileText } from 'lucide-react'
@@ -42,6 +43,7 @@ interface Filters {
 }
 
 const ActivityLogs = () => {
+  const navigate = useNavigate()
   const [logs, setLogs] = useState<ActivityLog[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [filtersOpen, setFiltersOpen] = useState<boolean>(false)
@@ -71,17 +73,51 @@ const ActivityLogs = () => {
 
       const response = await api.get<ActivityLogsResponse>(`/activity-logs?${params.toString()}`)
       
-      if (response.data && 'data' in response.data) {
-        setLogs(response.data.data)
-        setTotalCount(response.data.totalCount)
-      } else {
-        // Fallback for non-paginated response
-        const logsArray = response.data as unknown as ActivityLog[]
-        setLogs(Array.isArray(logsArray) ? logsArray : [])
-        setTotalCount(Array.isArray(logsArray) ? logsArray.length : 0)
+      // Ensure logs is always an array
+      let logsArray: ActivityLog[] = []
+      let total = 0
+      
+      if (response.data) {
+        // Check if response has paginated structure
+        if ('data' in response.data && Array.isArray(response.data.data)) {
+          logsArray = response.data.data
+          total = response.data.totalCount || response.data.data.length
+        } 
+        // Check if response.data itself is an array
+        else if (Array.isArray(response.data)) {
+          logsArray = response.data
+          total = response.data.length
+        }
+        // Check if response.data.data exists but might be an object
+        else if (response.data.data && Array.isArray(response.data.data)) {
+          logsArray = response.data.data
+          total = response.data.totalCount || response.data.data.length
+        }
+        // Last resort: try to extract from nested structure
+        else if (typeof response.data === 'object') {
+          const data = (response.data as any).data
+          if (Array.isArray(data)) {
+            logsArray = data
+            total = (response.data as any).totalCount || data.length
+          }
+        }
       }
-    } catch (error) {
+      
+      setLogs(logsArray)
+      setTotalCount(total)
+    } catch (error: any) {
       console.error('Error fetching activity logs:', error)
+      // If it's a critical error, navigate back
+      if (error?.response?.status >= 500 || error?.message?.includes('Network')) {
+        console.error('Critical error, navigating back')
+        setTimeout(() => {
+          if (window.history.length > 1) {
+            navigate(-1)
+          } else {
+            navigate('/dashboard', { replace: true })
+          }
+        }, 1000)
+      }
       setLogs([])
       setTotalCount(0)
     } finally {
@@ -250,7 +286,7 @@ const ActivityLogs = () => {
 
       {/* Logs Table */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        {logs.length === 0 ? (
+        {!Array.isArray(logs) || logs.length === 0 ? (
           <EmptyState
             icon={Activity}
             title="No activity logs found"
@@ -283,7 +319,7 @@ const ActivityLogs = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {logs.map((log) => (
+                  {Array.isArray(logs) && logs.map((log) => (
                     <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                         <div className="text-xs sm:text-sm text-gray-900">
@@ -427,7 +463,14 @@ const ActivityLogs = () => {
                 <div>
                   <label className="text-xs font-medium text-gray-500">New Values</label>
                   <pre className="mt-1 p-3 bg-gray-50 rounded-md text-xs overflow-x-auto">
-                    {JSON.stringify(JSON.parse(selectedLog.newValues), null, 2)}
+                    {(() => {
+                      try {
+                        const parsed = JSON.parse(selectedLog.newValues)
+                        return JSON.stringify(parsed, null, 2)
+                      } catch (e) {
+                        return selectedLog.newValues
+                      }
+                    })()}
                   </pre>
                 </div>
               )}
@@ -436,7 +479,14 @@ const ActivityLogs = () => {
                 <div>
                   <label className="text-xs font-medium text-gray-500">Old Values</label>
                   <pre className="mt-1 p-3 bg-gray-50 rounded-md text-xs overflow-x-auto">
-                    {JSON.stringify(JSON.parse(selectedLog.oldValues), null, 2)}
+                    {(() => {
+                      try {
+                        const parsed = JSON.parse(selectedLog.oldValues)
+                        return JSON.stringify(parsed, null, 2)
+                      } catch (e) {
+                        return selectedLog.oldValues
+                      }
+                    })()}
                   </pre>
                 </div>
               )}

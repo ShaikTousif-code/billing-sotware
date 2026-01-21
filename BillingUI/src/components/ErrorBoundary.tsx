@@ -1,8 +1,9 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ArrowLeft } from 'lucide-react'
 
 interface Props {
   children: ReactNode
+  onNavigateBack?: () => void
 }
 
 interface State {
@@ -21,6 +22,27 @@ class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo)
+    
+    // Auto-navigate back after a short delay
+    setTimeout(() => {
+      if (this.props.onNavigateBack) {
+        this.props.onNavigateBack()
+      } else if (window.history.length > 1) {
+        window.history.back()
+      } else {
+        window.location.href = '/dashboard'
+      }
+    }, 2000) // Navigate back after 2 seconds
+  }
+
+  private handleGoBack = () => {
+    if (this.props.onNavigateBack) {
+      this.props.onNavigateBack()
+    } else if (window.history.length > 1) {
+      window.history.back()
+    } else {
+      window.location.href = '/dashboard'
+    }
   }
 
   public render() {
@@ -33,17 +55,20 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
             <h2 className="text-xl font-bold text-gray-900 text-center mb-2">Something went wrong</h2>
             <p className="text-gray-600 text-center mb-4">
-              We're sorry, but something unexpected happened. Please try refreshing the page.
+              We're sorry, but something unexpected happened. Redirecting you back...
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => window.location.reload()}
-                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+                onClick={this.handleGoBack}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center justify-center gap-2"
               >
-                Refresh Page
+                <ArrowLeft className="h-4 w-4" />
+                Go Back
               </button>
               <button
-                onClick={() => this.setState({ hasError: false, error: undefined })}
+                onClick={() => {
+                  this.setState({ hasError: false, error: undefined })
+                }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
               >
                 Try Again

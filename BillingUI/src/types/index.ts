@@ -75,6 +75,7 @@ export interface Product {
   categoryId?: number
   costPrice: number
   sellingPrice: number
+  mrp?: number
   taxRate?: number
   taxType?: string
   stockQuantity?: number
@@ -85,6 +86,22 @@ export interface Product {
   barcode?: string
   isActive: boolean
   trackInventory: boolean
+  // Medical purchase fields
+  batchNo?: string
+  manufacturingDate?: string
+  expiryDate?: string
+  manufacturer?: string
+  supplierName?: string
+  lastPurchasePrice?: number
+  lastPurchaseQuantity?: number
+  lastPurchaseDate?: string
+  // Expiry configuration
+  expiryType?: 'FIXED_DATE' | 'DURATION'
+  expireAfterValue?: number
+  expireAfterUnit?: 'DAYS' | 'MONTHS' | 'YEARS'
+  alertBeforeValue?: number
+  alertBeforeUnit?: 'DAYS' | 'MONTHS'
+  isExpiryEnabled?: boolean
   // RMG fields
   styleCode?: string
   season?: string
@@ -303,6 +320,8 @@ export interface SalesReport {
   totalTax: number
   totalDiscount: number
   totalInvoices: number
+  totalCost?: number
+  totalProfit?: number
   dailySales: DailySales[]
 }
 
@@ -311,6 +330,8 @@ export interface ProductSalesItem {
   productName: string
   quantity: number
   totalAmount: number
+  totalCost: number
+  profit: number
 }
 
 export interface ProductSalesReport {

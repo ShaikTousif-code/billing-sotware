@@ -71,9 +71,12 @@ const Products = () => {
 
       const response = await api.get<{ success: boolean; data: PaginatedResponse<Product> }>('/products', { params })
       
+      // Ensure we always have an array
+      let productsData: Product[] = []
+      
       const paginatedData = response.data?.data
       if (paginatedData) {
-        let productsData = paginatedData.data || []
+        productsData = Array.isArray(paginatedData.data) ? paginatedData.data : []
         
         // Apply search filter first
         if (searchTerm) {
@@ -132,8 +135,20 @@ const Products = () => {
         setTotalCount(0)
         setTotalPages(0)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching products:', error)
+      // If it's a critical error, navigate back
+      if (error?.response?.status >= 500 || error?.message?.includes('Network')) {
+        console.error('Critical error fetching products, navigating back')
+        showToast('Failed to load products. Redirecting...', 'error')
+        setTimeout(() => {
+          if (window.history.length > 1) {
+            navigate(-1)
+          } else {
+            navigate('/dashboard', { replace: true })
+          }
+        }, 1500)
+      }
       setProducts([])
       setTotalCount(0)
       setTotalPages(0)
@@ -397,7 +412,7 @@ const Products = () => {
                 </td>
               </tr>
             ) : (
-              products.map((product) => (
+              Array.isArray(products) && products.map((product) => (
                 <tr key={product.id} className="hover:bg-gray-50 transition-colors duration-150 cursor-pointer" onClick={() => navigate(`/products/${product.id}`)}>
                   <td className="px-3 sm:px-6 py-4">
                     <div className="text-sm font-medium text-gray-900">

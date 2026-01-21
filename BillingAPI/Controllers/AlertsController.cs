@@ -33,6 +33,14 @@ public class AlertsController : ControllerBase
         return Ok(alerts);
     }
 
+    [HttpGet("expiry/debug")]
+    public async Task<IActionResult> GetExpiryAlertsDebug()
+    {
+        var tenantId = GetTenantId();
+        var debugInfo = await _alertService.GetExpiryAlertsDebugAsync(tenantId);
+        return Ok(debugInfo);
+    }
+
     private int GetTenantId()
     {
         return int.Parse(User.FindFirst("TenantId")?.Value ?? "0");

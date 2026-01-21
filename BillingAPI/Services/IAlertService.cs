@@ -7,6 +7,7 @@ public interface IAlertService
     Task<List<LowStockAlert>> GetLowStockAlertsAsync(int tenantId);
     Task<List<ExpiryAlert>> GetExpiryAlertsAsync(int tenantId, int daysAhead = 30);
     Task CheckAndCreateAlertsAsync(int tenantId);
+    Task<object> GetExpiryAlertsDebugAsync(int tenantId);
 }
 
 public class LowStockAlert
@@ -29,5 +30,7 @@ public class ExpiryAlert
     public DateTime ExpiryDate { get; set; }
     public int DaysUntilExpiry { get; set; }
     public int Quantity { get; set; }
+    public int AlertThresholdDays { get; set; }
+    public string Status { get; set; } = "ACTIVE"; // "ACTIVE", "NEAR_EXPIRY", "EXPIRED"
 }
 

@@ -26,8 +26,17 @@ public class Product
 
     // Enhanced purchase invoice fields
     public string? BatchNo { get; set; }
+    public DateTime? ManufacturingDate { get; set; }
     public DateTime? ExpiryDate { get; set; }
     public string? Manufacturer { get; set; }
+
+    // Expiry configuration (product-level)
+    public string? ExpiryType { get; set; } // "FIXED_DATE" or "DURATION"
+    public int? ExpireAfterValue { get; set; } // e.g., 6, 12, 24
+    public string? ExpireAfterUnit { get; set; } // "DAYS", "MONTHS", "YEARS"
+    public int? AlertBeforeValue { get; set; } // e.g., 30
+    public string? AlertBeforeUnit { get; set; } // "DAYS", "MONTHS"
+    public bool IsExpiryEnabled { get; set; } = false; // Enable/Disable expiry tracking
 
     // Purchase tracking
     public decimal? LastPurchasePrice { get; set; }

@@ -153,13 +153,9 @@ const Layout = () => {
     { name: 'Documents', href: '/documents', icon: FileText, billingTypes: ['Office'], group: 'Office' },
     { name: 'Bill Scanner', href: '/bill-scanner', icon: Upload, billingTypes: ['Retail', 'Office', 'School', 'Medical'], group: 'Common' },
     
-    // Medical Billing menus
-    { name: 'Patients', href: '/patients', icon: Heart, billingTypes: ['Medical'], group: 'Medical' },
-    { name: 'Appointments', href: '/appointments', icon: Calendar, billingTypes: ['Medical'], group: 'Medical' },
-    { name: 'Medical Records', href: '/medical-records', icon: FileText, billingTypes: ['Medical'], group: 'Medical' },
-    { name: 'Prescriptions', href: '/prescriptions', icon: Pill, billingTypes: ['Medical'], group: 'Medical' },
+    // Medical Billing menus - POS and medicine transactions only
+    { name: 'POS', href: '/invoices/new', icon: DollarSign, billingTypes: ['Medical'], group: 'Medical' },
     { name: 'Pharmacy', href: '/pharmacy', icon: Pill, billingTypes: ['Medical'], group: 'Medical' },
-    { name: 'Medical Codes', href: '/medical-codes', icon: Stethoscope, billingTypes: ['Medical'], group: 'Medical' },
   ]
 
   // Filter navigation items based on billing type

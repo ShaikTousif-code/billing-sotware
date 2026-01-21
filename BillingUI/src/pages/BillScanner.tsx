@@ -1193,6 +1193,8 @@ const BillScanner = () => {
           </div>
         </div>
       )}
+      {(scannedData || rawBillData) && (
+          <div className="bg-white shadow rounded-lg p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-medium text-gray-900">
               {showRawData ? 'Raw Data & Field Mapping' : 'Review Extracted Data'}
@@ -1229,12 +1231,15 @@ const BillScanner = () => {
               <button
                   onClick={() => {
                     // Convert scanned products to bulk products for detailed editing
-                    const bulkData = convertToBulkProducts(scannedData.products)
-                    setBulkProducts(bulkData)
-                    setShowBulkEdit(true)
-                    fetchCategories()
+                    if (scannedData?.products) {
+                      const bulkData = convertToBulkProducts(scannedData.products)
+                      setBulkProducts(bulkData)
+                      setShowBulkEdit(true)
+                      fetchCategories()
+                    }
                   }}
-                  className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-md text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100"
+                  disabled={!scannedData?.products?.length}
+                  className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-md text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Settings className="h-4 w-4 mr-2" />
                   Detailed Edit ({scannedData?.products?.length || 0})
@@ -1242,14 +1247,17 @@ const BillScanner = () => {
               </div>
             </div>
 
+          {showRawData ? (
+            <div>
+              {rawBillData && (
               <div className="flex items-center space-x-4 p-4 bg-blue-50 rounded-lg">
                 <div className="flex items-center">
                   <span className="text-sm font-medium text-gray-700">OCR Confidence:</span>
                   <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
-                    rawBillData.ocrConfidence > 0.8 ? 'bg-green-100 text-green-800' :
-                    rawBillData.ocrConfidence > 0.6 ? 'bg-yellow-100 text-yellow-800' :
+                    (rawBillData.ocrConfidence || 0) > 0.8 ? 'bg-green-100 text-green-800' :
+                    (rawBillData.ocrConfidence || 0) > 0.6 ? 'bg-yellow-100 text-yellow-800' :
                     'bg-red-100 text-red-800'}`}>
-                    {(rawBillData.ocrConfidence * 100).toFixed(1)}%
+                    {((rawBillData.ocrConfidence || 0) * 100).toFixed(1)}%
                   </span>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -1265,26 +1273,30 @@ const BillScanner = () => {
                   </span>
                 </div>
               </div>
+              )}
 
               {/* Raw Text */}
+              {rawBillData && (
               <div>
                 <h3 className="text-md font-medium text-gray-900 mb-2">Raw Extracted Text</h3>
                 <div className="bg-gray-50 p-4 rounded-lg max-h-48 overflow-y-auto">
-                  <pre className="text-sm text-gray-800 whitespace-pre-wrap">{rawBillData.rawText}</pre>
+                  <pre className="text-sm text-gray-800 whitespace-pre-wrap">{rawBillData.rawText || ''}</pre>
                 </div>
               </div>
+              )}
 
               {/* All Detected Lines */}
+              {rawBillData && (
               <div>
                 <h3 className="text-md font-medium text-gray-900 mb-2">All Detected Lines</h3>
                 <div className="bg-gray-50 p-4 rounded-lg max-h-64 overflow-y-auto">
                   <div className="space-y-1 text-sm">
-                    {rawBillData.rawText.split('\n').map((line, idx) => {
+                    {rawBillData.rawText?.split('\n').map((line, idx) => {
                       const trimmedLine = line.trim()
                       if (!trimmedLine) return null
 
-                      const isProductLine = rawBillData.productLines.some(pl => pl.lineNumber === idx + 1)
-                      const productLine = rawBillData.productLines.find(pl => pl.lineNumber === idx + 1)
+                      const isProductLine = rawBillData.productLines?.some(pl => pl.lineNumber === idx + 1) || false
+                      const productLine = rawBillData.productLines?.find(pl => pl.lineNumber === idx + 1)
 
                       return (
                         <div key={idx} className={`p-2 rounded border-l-4 ${
@@ -1317,6 +1329,7 @@ const BillScanner = () => {
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Column Detection & Mapping */}
               <div>
@@ -1432,7 +1445,7 @@ const BillScanner = () => {
                           <tbody className="bg-white divide-y divide-gray-200">
                             {detectedColumns.map((column, index) => {
                               // Get sample values from product lines for this column position
-                              const sampleValues = rawBillData.productLines
+                              const sampleValues = (rawBillData?.productLines || [])
                                 .filter(line => line.isLikelyProductLine)
                                 .slice(0, 3) // First 3 product lines
                                 .map(line => line.rawText.split(/\s+/)[index])
@@ -1587,6 +1600,7 @@ const BillScanner = () => {
                 )}
 
                 {/* Debug info */}
+                {rawBillData && (
                 <div className='mt-4 p-3 bg-gray-50 rounded text-xs'>
                   <div className='font-medium mb-2'>Debug Info:</div>
                   <div>Header Fields: {Object.keys(rawBillData.header?.detectedFields || {}).length}</div>
@@ -1604,9 +1618,11 @@ const BillScanner = () => {
                       </button>
                       <button
                         onClick={() => {
-                          const totalLines = rawBillData.productLines.length
-                          const likelyLines = rawBillData.productLines.filter(l => l.isLikelyProductLine).length
-                          showToast(`Total lines: ${totalLines}, Likely products: ${likelyLines}`, 'info')
+                          if (rawBillData.productLines) {
+                            const totalLines = rawBillData.productLines.length
+                            const likelyLines = rawBillData.productLines.filter(l => l.isLikelyProductLine).length
+                            showToast(`Total lines: ${totalLines}, Likely products: ${likelyLines}`, 'info')
+                          }
                         }}
                         className='px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600'
                       >
@@ -1629,10 +1645,11 @@ const BillScanner = () => {
                     )}
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Footer Fields */}
-              {Object.keys(rawBillData.footer.detectedFields).length > 0 && (
+              {rawBillData && rawBillData.footer && rawBillData.footer.detectedFields && Object.keys(rawBillData.footer.detectedFields).length > 0 && (
                 <div>
                   <h3 className='text-md font-medium text-gray-900 mb-2'>Footer Fields</h3>
                   <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
@@ -1647,20 +1664,21 @@ const BillScanner = () => {
               )}
             </div>
           ) : (
-            <div className='space-y-6'>
+            scannedData ? (
+              <div className='space-y-6'>
               {/* Bill Header Info */}
               <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg'>
                 <div>
                   <label className='block text-xs font-medium text-gray-700'>Supplier</label>
-                  <p className='text-sm text-gray-900'>{scannedData.supplierName || 'Not detected'}</p>
+                  <p className='text-sm text-gray-900'>{scannedData?.supplierName || 'Not detected'}</p>
                 </div>
                 <div>
                   <label className='block text-xs font-medium text-gray-700'>Bill Number</label>
-                  <p className='text-sm text-gray-900'>{scannedData.billNumber || 'Not detected'}</p>
+                  <p className='text-sm text-gray-900'>{scannedData?.billNumber || 'Not detected'}</p>
                 </div>
                 <div>
                   <label className='block text-xs font-medium text-gray-700'>Bill Date</label>
-                  <p className='text-sm text-gray-900'>{scannedData.billDate || 'Not detected'}</p>
+                  <p className='text-sm text-gray-900'>{scannedData?.billDate || 'Not detected'}</p>
                 </div>
               </div>
 
@@ -1760,7 +1778,16 @@ const BillScanner = () => {
                 )}
               </div>
             </div>
+            ) : (
+              <div className='text-center py-8 text-gray-500'>
+                No scanned data available. Please upload and scan a bill first.
+              </div>
+            )
           )
+          }
+          </div>
+        </div>
+        )}
           
           {/* Bulk Edit View */}
           {scannedData && showBulkEdit && (
@@ -2058,10 +2085,11 @@ const BillScanner = () => {
               
           )}
       </div>
-    
 
-        <ToastContainer />
-      </div>
+      <ToastContainer />
+      
+    
+    </div>
   )}
 
 export default BillScanner

@@ -196,8 +196,20 @@ const CreateInvoice = () => {
       const productsData = productsRes.data?.data?.data || productsRes.data?.data || []
       setProducts(Array.isArray(productsData) ? productsData : [])
       setCustomers(Array.isArray(customersRes.data) ? customersRes.data : [])
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching data:', error)
+      // If it's a critical error, navigate back
+      if (error?.response?.status >= 500 || error?.message?.includes('Network')) {
+        console.error('Critical error fetching data, navigating back')
+        showToast('Failed to load data. Redirecting...', 'error')
+        setTimeout(() => {
+          if (window.history.length > 1) {
+            navigate(-1)
+          } else {
+            navigate('/invoices', { replace: true })
+          }
+        }, 1500)
+      }
       setProducts([])
       setCustomers([])
     }
@@ -251,16 +263,30 @@ const CreateInvoice = () => {
       const response = await api.get<{ success: boolean; data: ProductVariantCombination }>(
         `/product-variant-combinations/barcode/${barcode}`
       )
-      if (response.data.success) {
+      if (response.data?.success && response.data.data) {
         const variant = response.data.data
+        if (!variant || !variant.productId) {
+          throw new Error('Invalid variant data')
+        }
+        
         const product = products.find(p => p.id === variant.productId)
         if (product) {
+          // Check expiry
+          const isExpired = product.isExpiryEnabled && product.expiryDate 
+            ? new Date(product.expiryDate) < new Date()
+            : false
+          if (isExpired) {
+            showToast(`Cannot add expired product: ${product.name}`, 'error')
+            setBarcodeInput('')
+            return
+          }
+          
           // Add item with variant
           const newItem: InvoiceItemForm = {
             productId: product.id.toString(),
             productName: product.name,
             quantity: 1,
-            unitPrice: variant.sellingPrice || product.sellingPrice,
+            unitPrice: variant.sellingPrice || product.sellingPrice || 0,
             discountAmount: 0,
             taxRate: product.taxRate || 0,
             taxAmount: 0,
@@ -275,27 +301,117 @@ const CreateInvoice = () => {
           
           setItems([...items, newItem])
           setBarcodeInput('')
-          showToast(`Added ${product.name} - ${variant.size}/${variant.color}`, 'success')
+          const variantInfo = variant.size && variant.color 
+            ? ` - ${variant.size}/${variant.color}` 
+            : ''
+          showToast(`Added ${product.name}${variantInfo}`, 'success')
+        } else {
+          // Product not found for variant, try regular product barcode
+          const regularProduct = products.find(p => p.barcode === barcode)
+          if (regularProduct) {
+            // Check expiry
+            const isExpired = regularProduct.isExpiryEnabled && regularProduct.expiryDate 
+              ? new Date(regularProduct.expiryDate) < new Date()
+              : false
+            if (isExpired) {
+              showToast(`Cannot add expired product: ${regularProduct.name}`, 'error')
+              setBarcodeInput('')
+              return
+            }
+            
+            const newItem: InvoiceItemForm = {
+              productId: regularProduct.id.toString(),
+              productName: regularProduct.name,
+              quantity: 1,
+              unitPrice: regularProduct.sellingPrice || 0,
+              discountAmount: 0,
+              taxRate: regularProduct.taxRate || 0,
+              taxAmount: 0,
+              totalAmount: 0,
+            }
+            const subtotal = newItem.quantity * newItem.unitPrice - newItem.discountAmount
+            newItem.taxAmount = (subtotal * newItem.taxRate) / 100
+            newItem.totalAmount = subtotal + newItem.taxAmount
+            
+            setItems([...items, newItem])
+            setBarcodeInput('')
+            showToast(`Added ${regularProduct.name}`, 'success')
+          } else {
+            showToast('Product not found for barcode', 'error')
+          }
         }
       } else {
         // Try regular product barcode
-        const product = products.find(p => p.barcode === barcode)
-        if (product) {
-          updateItem(items.length, 'productId', product.id.toString())
+        const regularProduct = products.find(p => p.barcode === barcode)
+        if (regularProduct) {
+          // Check expiry
+          const isExpired = regularProduct.isExpiryEnabled && regularProduct.expiryDate 
+            ? new Date(regularProduct.expiryDate) < new Date()
+            : false
+          if (isExpired) {
+            showToast(`Cannot add expired product: ${regularProduct.name}`, 'error')
+            setBarcodeInput('')
+            return
+          }
+          
+          const newItem: InvoiceItemForm = {
+            productId: regularProduct.id.toString(),
+            productName: regularProduct.name,
+            quantity: 1,
+            unitPrice: regularProduct.sellingPrice || 0,
+            discountAmount: 0,
+            taxRate: regularProduct.taxRate || 0,
+            taxAmount: 0,
+            totalAmount: 0,
+          }
+          const subtotal = newItem.quantity * newItem.unitPrice - newItem.discountAmount
+          newItem.taxAmount = (subtotal * newItem.taxRate) / 100
+          newItem.totalAmount = subtotal + newItem.taxAmount
+          
+          setItems([...items, newItem])
           setBarcodeInput('')
-          showToast(`Added ${product.name}`, 'success')
+          showToast(`Added ${regularProduct.name}`, 'success')
         } else {
           showToast('Product not found for barcode', 'error')
         }
       }
     } catch (error: any) {
+      console.error('Barcode scan error:', error)
+      
+      // If it's a critical error, navigate back
+      if (error?.response?.status >= 500 || error?.message?.includes('Network')) {
+        console.error('Critical error during barcode scan, navigating back')
+        showToast('Error scanning barcode. Redirecting...', 'error')
+        setTimeout(() => {
+          if (window.history.length > 1) {
+            navigate(-1)
+          } else {
+            navigate('/invoices', { replace: true })
+          }
+        }, 1500)
+        return
+      }
+      
       // Try regular product barcode
-      const product = products.find(p => p.barcode === barcode)
-      if (product) {
-        addItem()
-        updateItem(items.length, 'productId', product.id.toString())
+      const regularProduct = products.find(p => p.barcode === barcode)
+      if (regularProduct) {
+        const newItem: InvoiceItemForm = {
+          productId: regularProduct.id.toString(),
+          productName: regularProduct.name,
+          quantity: 1,
+          unitPrice: regularProduct.sellingPrice || 0,
+          discountAmount: 0,
+          taxRate: regularProduct.taxRate || 0,
+          taxAmount: 0,
+          totalAmount: 0,
+        }
+        const subtotal = newItem.quantity * newItem.unitPrice - newItem.discountAmount
+        newItem.taxAmount = (subtotal * newItem.taxRate) / 100
+        newItem.totalAmount = subtotal + newItem.taxAmount
+        
+        setItems([...items, newItem])
         setBarcodeInput('')
-        showToast(`Added ${product.name}`, 'success')
+        showToast(`Added ${regularProduct.name}`, 'success')
       } else {
         showToast('Product not found for barcode', 'error')
       }
@@ -867,7 +983,7 @@ const CreateInvoice = () => {
           </div>
 
           {/* Invoice Items */}
-          <div className="bg-white shadow rounded-lg p-6" style={{ overflow: 'visible' }}>
+          <div className="bg-white shadow rounded-lg p-6" style={{ overflow: 'visible', position: 'relative', zIndex: 'auto' }}>
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
               <h2 className="text-base sm:text-lg font-medium text-gray-900">Items</h2>
               <div className="flex flex-wrap gap-2">
@@ -904,15 +1020,15 @@ const CreateInvoice = () => {
             </div>
 
 
-            <div className="space-y-4" style={{ overflow: 'visible' }}>
+            <div className="space-y-4" style={{ overflow: 'visible', position: 'relative', zIndex: 'auto' }}>
               {items.map((item, index) => (
-                <div key={index} className="border rounded-lg p-4" style={{ overflow: 'visible', position: 'relative' }}>
+                <div key={index} className="border rounded-lg p-4" style={{ overflow: 'visible', position: 'relative', zIndex: 'auto' }}>
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-4" style={{ overflow: 'visible' }}>
-                    <div className="sm:col-span-5" style={{ overflow: 'visible', position: 'relative' }}>
+                    <div className="sm:col-span-5" style={{ overflow: 'visible', position: 'relative', zIndex: 'auto' }}>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
                         Product
                       </label>
-                      <div className="relative product-dropdown" style={{ zIndex: showPaymentModal ? 1 : 1000 + index }}>
+                      <div className="relative product-dropdown" style={{ zIndex: showPaymentModal ? 1 : 1000 + index, overflow: 'visible', isolation: 'isolate' }}>
                         <button
                           type="button"
                           onClick={() => {
@@ -936,17 +1052,22 @@ const CreateInvoice = () => {
 
                         {productDropdowns[index]?.isOpen && !showPaymentModal && (
                           <div 
-                            className="absolute bg-white shadow-xl max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm" 
+                            className="absolute bg-white shadow-xl rounded-md text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm flex flex-col" 
                             style={{ 
                               position: 'absolute', 
                               top: '100%', 
                               left: 0,
-                              zIndex: showPaymentModal ? 1 : 10000,
+                              right: 0,
+                              zIndex: showPaymentModal ? 1 : 99999,
                               width: '100%',
-                              minWidth: '200px'
+                              minWidth: '200px',
+                              maxHeight: '240px',
+                              marginTop: '2px',
+                              overflow: 'hidden',
+                              transform: 'translateZ(0)'
                             }}
                           >
-                            <div className="sticky top-0 z-10 bg-white border-b">
+                            <div className="flex-shrink-0 bg-white border-b sticky top-0 z-10">
                               <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                   <Search className="h-4 w-4 text-gray-400" />
@@ -962,7 +1083,7 @@ const CreateInvoice = () => {
                                 />
                               </div>
                             </div>
-                            <div className="py-1">
+                            <div className="py-1 overflow-y-auto flex-1" style={{ overflowX: 'hidden', minHeight: 0 }}>
                               {getFilteredProducts(index).length === 0 ? (
                                 <div className="px-3 py-2 text-sm text-gray-500">No products found</div>
                               ) : (
@@ -974,38 +1095,71 @@ const CreateInvoice = () => {
                                     ? availableStock <= product.lowStockAlert
                                     : false
                                   const isOutOfStock = availableStock === 0
+                                  
+                                  // Check expiry status
+                                  const isExpired = product.isExpiryEnabled && product.expiryDate 
+                                    ? new Date(product.expiryDate) < new Date()
+                                    : false
+                                  const isNearExpiry = product.isExpiryEnabled && product.expiryDate && !isExpired
+                                    ? (() => {
+                                        const expiryDate = new Date(product.expiryDate)
+                                        const today = new Date()
+                                        const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                                        const alertDays = product.alertBeforeValue || 30
+                                        return daysUntilExpiry <= alertDays && daysUntilExpiry >= 0
+                                      })()
+                                    : false
 
                                   return (
                                     <button
                                       key={product.id}
                                       type="button"
                                       onClick={() => {
+                                        if (isExpired) {
+                                          showToast('Cannot add expired product to invoice', 'error')
+                                          return
+                                        }
                                         updateItem(index, 'productId', product.id.toString())
                                         closeProductDropdown(index)
+                                        if (isNearExpiry) {
+                                          showToast(`Warning: ${product.name} is expiring soon`, 'warning')
+                                        }
                                       }}
                                       className={`w-full text-left px-3 py-2 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none ${
-                                        isOutOfStock ? 'opacity-50 cursor-not-allowed' : ''
+                                        isOutOfStock || isExpired ? 'opacity-50 cursor-not-allowed' : ''
                                       }`}
-                                      disabled={isOutOfStock}
+                                      disabled={isOutOfStock || isExpired}
                                     >
                                       <div className="text-sm">
                                         <div className="font-medium text-gray-900 flex items-center justify-between">
                                           <span>{product.name}</span>
-                                          {isOutOfStock && (
+                                          {isExpired && (
+                                            <span className="text-xs text-red-600 font-semibold">Expired</span>
+                                          )}
+                                          {isNearExpiry && !isExpired && (
+                                            <span className="text-xs text-orange-600 font-semibold">Near Expiry</span>
+                                          )}
+                                          {isOutOfStock && !isExpired && (
                                             <span className="text-xs text-red-600 font-semibold">Out of Stock</span>
                                           )}
                                         </div>
                                         <div className="text-gray-500">₹{product.sellingPrice}</div>
                                         {availableStock !== null && (
                                           <div className={`text-xs mt-1 ${
-                                            isOutOfStock 
+                                            isOutOfStock || isExpired
                                               ? 'text-red-600' 
-                                              : isLowStock 
+                                              : isLowStock || isNearExpiry
                                                 ? 'text-yellow-600' 
                                                 : 'text-green-600'
                                           }`}>
                                             Stock: {availableStock} {product.unit || 'units'}
-                                            {isLowStock && !isOutOfStock && ' (Low Stock)'}
+                                            {isLowStock && !isOutOfStock && !isExpired && ' (Low Stock)'}
+                                            {isNearExpiry && !isExpired && product.expiryDate && (
+                                              <span> | Expires: {new Date(product.expiryDate).toLocaleDateString()}</span>
+                                            )}
+                                            {isExpired && product.expiryDate && (
+                                              <span> | Expired: {new Date(product.expiryDate).toLocaleDateString()}</span>
+                                            )}
                                           </div>
                                         )}
                                       </div>

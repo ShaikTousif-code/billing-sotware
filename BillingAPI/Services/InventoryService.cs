@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using BillingAPI.Data;
 using BillingAPI.Models;
+using static BillingAPI.Services.ExpiryService;
 
 namespace BillingAPI.Services;
 
@@ -93,6 +94,61 @@ public class InventoryService : IInventoryService
         {
             product.StockQuantity = finalQuantity;
             product.UpdatedAt = DateTime.UtcNow;
+        }
+
+        // Create batch record if product has expiry enabled and we're adding stock
+        // This ensures retail products with expiry tracking also get batches created
+        if (addToExisting && quantity > 0 && product.IsExpiryEnabled)
+        {
+            // Check if a batch should be created
+            // Only create if we don't have a recent batch for this product (to avoid duplicates)
+            var recentBatch = await _context.Batches
+                .Where(b => b.TenantId == tenantId 
+                    && b.ProductId == productId 
+                    && b.ExpiryDate.HasValue
+                    && b.Quantity > 0)
+                .OrderByDescending(b => b.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            // Create batch if:
+            // 1. No recent batch exists, OR
+            // 2. Product has expiry configuration that needs tracking
+            if (recentBatch == null || (product.ExpiryType == "DURATION" && !recentBatch.ManufacturingDate.HasValue))
+            {
+                DateTime? calculatedExpiryDate = null;
+                DateTime? manufacturingDate = null;
+
+                // If product has DURATION type, calculate expiry from manufacturing date
+                if (product.ExpiryType == "DURATION" && product.ExpireAfterValue.HasValue)
+                {
+                    // Use product's manufacturing date if available, otherwise use current date
+                    manufacturingDate = product.ManufacturingDate ?? DateTime.UtcNow.Date;
+                    calculatedExpiryDate = ExpiryService.CalculateExpiryDate(manufacturingDate, product);
+                }
+                else if (product.ExpiryType == "FIXED_DATE" && product.ExpiryDate.HasValue)
+                {
+                    calculatedExpiryDate = product.ExpiryDate;
+                }
+
+                // Only create batch if we have an expiry date
+                if (calculatedExpiryDate.HasValue)
+                {
+                    var batchStatus = ExpiryService.EvaluateBatchStatus(calculatedExpiryDate, product);
+                    var batch = new Batch
+                    {
+                        TenantId = tenantId,
+                        ProductId = productId,
+                        BatchNumber = $"BATCH-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                        ManufacturingDate = manufacturingDate,
+                        ExpiryDate = calculatedExpiryDate,
+                        Quantity = quantity,
+                        UnitCost = unitCost ?? product.CostPrice,
+                        IsExpired = batchStatus == "EXPIRED",
+                        Status = batchStatus
+                    };
+                    _context.Batches.Add(batch);
+                }
+            }
         }
 
         await _context.SaveChangesAsync();

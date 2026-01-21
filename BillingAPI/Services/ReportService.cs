@@ -15,18 +15,30 @@ public class ReportService : IReportService
     public async Task<SalesReport> GetSalesReportAsync(int tenantId, DateTime fromDate, DateTime toDate)
     {
         var invoices = await _context.Invoices
+            .Include(i => i.Items)
+            .ThenInclude(item => item.Product)
             .Where(i => i.TenantId == tenantId 
                 && i.InvoiceDate >= fromDate 
                 && i.InvoiceDate <= toDate
                 && i.Status == "Completed")
             .ToListAsync();
 
+        // Calculate total cost from invoice items
+        var totalCost = invoices
+            .SelectMany(i => i.Items)
+            .Sum(item => (item.Product?.CostPrice ?? 0) * item.Quantity);
+
+        var totalSales = invoices.Sum(i => i.TotalAmount);
+        var totalProfit = totalSales - totalCost;
+
         var report = new SalesReport
         {
-            TotalSales = invoices.Sum(i => i.TotalAmount),
+            TotalSales = totalSales,
             TotalTax = invoices.Sum(i => i.TaxAmount),
             TotalDiscount = invoices.Sum(i => i.DiscountAmount),
-            TotalInvoices = invoices.Count
+            TotalInvoices = invoices.Count,
+            TotalCost = totalCost,
+            TotalProfit = totalProfit
         };
 
         var dailySales = invoices
@@ -44,25 +56,41 @@ public class ReportService : IReportService
         return report;
     }
 
-    public async Task<ProductSalesReport> GetProductSalesReportAsync(int tenantId, DateTime fromDate, DateTime toDate)
+    public async Task<ProductSalesReport> GetProductSalesReportAsync(int tenantId, DateTime fromDate, DateTime toDate, int? productId = null)
     {
-        var invoiceItems = await _context.InvoiceItems
+        var invoiceItemsQuery = _context.InvoiceItems
             .Include(i => i.Invoice)
             .Include(i => i.Product)
             .Where(i => i.Invoice!.TenantId == tenantId
                 && i.Invoice.InvoiceDate >= fromDate
                 && i.Invoice.InvoiceDate <= toDate
-                && i.Invoice.Status == "Completed")
-            .ToListAsync();
+                && i.Invoice.Status == "Completed");
+
+        // Apply product filter if specified
+        if (productId.HasValue)
+        {
+            invoiceItemsQuery = invoiceItemsQuery.Where(i => i.ProductId == productId.Value);
+        }
+
+        var invoiceItems = await invoiceItemsQuery.ToListAsync();
 
         var items = invoiceItems
             .GroupBy(i => new { i.ProductId, i.ProductName })
-            .Select(g => new ProductSalesItem
+            .Select(g => 
             {
-                ProductId = g.Key.ProductId,
-                ProductName = g.Key.ProductName,
-                Quantity = g.Sum(i => i.Quantity),
-                TotalAmount = g.Sum(i => i.TotalAmount)
+                var totalCost = g.Sum(i => (i.Product?.CostPrice ?? 0) * i.Quantity);
+                var totalAmount = g.Sum(i => i.TotalAmount);
+                var profit = totalAmount - totalCost;
+                
+                return new ProductSalesItem
+                {
+                    ProductId = g.Key.ProductId,
+                    ProductName = g.Key.ProductName,
+                    Quantity = g.Sum(i => i.Quantity),
+                    TotalAmount = totalAmount,
+                    TotalCost = totalCost,
+                    Profit = profit
+                };
             })
             .OrderByDescending(i => i.TotalAmount)
             .ToList();

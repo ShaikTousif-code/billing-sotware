@@ -1,6 +1,6 @@
 // Service Worker for PWA Support with Update Handling
 // Version will be updated automatically during build
-const CACHE_VERSION = 'v1.0.0-1768666490077'
+const CACHE_VERSION = 'v1.0.0-1768991777258'
 const CACHE_NAME = `billing-software-${CACHE_VERSION}`
 const urlsToCache = [
   '/',

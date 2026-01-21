@@ -13,6 +13,7 @@ public class Batch
     public decimal UnitCost { get; set; }
     public int? WarehouseId { get; set; }
     public bool IsExpired { get; set; } = false;
+    public string? Status { get; set; } // "ACTIVE", "NEAR_EXPIRY", "EXPIRED"
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public Tenant? Tenant { get; set; }
